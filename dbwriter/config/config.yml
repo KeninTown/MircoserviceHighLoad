@@ -1,0 +1,5 @@
+host: "pgdb"
+port: 5432
+user: "postgres"
+dbname: "patients"
+sslmode: "disable"

@@ -1,0 +1,61 @@
+version: "2"
+services:
+  dbwriter:
+    build:
+      context: ./dbwriter
+      dockerfile: ./deployments/Dockerfile
+    command: ./wait-for-postgres.sh pgdb ./main
+    container_name: dbwriter
+    depends_on:
+      - kafka
+      - pgdb
+    environment:
+      - KAFKA_HOST=kafka:29092
+      - POSTGRES_PASSWORD=postgres
+      - CONFIG_PATH=../config/config.yml
+
+  pgdb:
+    image: postgres:latest
+    container_name: pgdb
+    restart: always
+    ports:
+      - 5436:5432
+    environment:
+      - POSTGRES_DB=patients
+    volumes:
+      - ../pgdata:/var/lib/postgresql/data
+  
+  server:
+    build: 
+      context: ./server
+      dockerfile: ./deployments/Dockerfile
+    container_name: server
+    depends_on:
+      - kafka
+    environment:
+      - KAFKA_HOST=kafka:29092
+      - CONFIG_PATH=../config/config.yml
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 22181:2181
+    container_name: zookeeper
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    ports:
+      - 29092:29092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
