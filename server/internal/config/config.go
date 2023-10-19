@@ -17,7 +17,7 @@ func Init(path string) (*Config, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("failed to read config file, path = %s", path)
+		return nil, fmt.Errorf("failed to read config file, path = %s, err = %s", path, err.Error())
 	}
 
 	if err := v.Unmarshal(&cfg); err != nil {

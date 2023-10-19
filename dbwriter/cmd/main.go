@@ -36,11 +36,12 @@ func main() {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
+	defer db.Db.Close()
 
 	slog.Info("succesfully connect to database")
 
 	//created temp csv file
-	absPathToCsvDir, err := filepath.Abs("../temp/")
+	absPathToCsvDir, err := filepath.Abs("./temp/")
 	if err != nil {
 		slog.Info("failed to get abs path to temp dir", sl.Error(err))
 		os.Exit(1)
@@ -64,19 +65,25 @@ func main() {
 		slog.Error(err.Error())
 	}
 
+	// slog.Error("Привет привет привет")
+	// slog.Error("Привет привет привет")
+	// slog.Error("Привет привет привет")
+	// slog.Error("Привет привет привет")
+	log.Println("KafkaHost", cfg.KafkaHost)
 	consumer, err := sarama.NewConsumer([]string{cfg.KafkaHost}, sarama.NewConfig())
 	if err != nil {
-		slog.Error("failed  to init consumer", sl.Error(err))
+		slog.Error("failed  to init consumer", slog.String("kafkaHost", cfg.KafkaHost), sl.Error(err))
+		os.Exit(1)
 	}
+	log.Println("consumer, ", consumer)
 	defer consumer.Close()
 
 	partitionConsumer, err := consumer.ConsumePartition("test", 0, sarama.OffsetNewest)
-	defer func() {
-		if err := partitionConsumer.Close(); err != nil {
-			slog.Error("failed to close partitionConsumer", sl.Error(err))
-			os.Exit(1)
-		}
-	}()
+	if err != nil {
+		slog.Error("failed to init partition consumer", sl.Error(err))
+		os.Exit(1)
+	}
+	defer partitionConsumer.Close()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, os.Interrupt)
 	defer stop()

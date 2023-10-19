@@ -3,16 +3,22 @@ services:
   dbwriter:
     build:
       context: ./dbwriter
-      dockerfile: ./deployments/Dockerfile
-    command: ./wait-for-postgres.sh pgdb ./main
+      dockerfile: /deployments/Dockerfile
+    command: >
+      sh -c "./wait-for-postgres.sh pgdb && ./wait-for-it.sh kafka:9092 -t 0 && ./main" 
     container_name: dbwriter
     depends_on:
       - kafka
       - pgdb
     environment:
-      - KAFKA_HOST=kafka:29092
+      - KAFKA_HOST=kafka:9092
       - POSTGRES_PASSWORD=postgres
-      - CONFIG_PATH=../config/config.yml
+      - CONFIG_PATH=/app/dbwriter/config/config.yml
+    volumes:
+      - ./dbwriter/config/config.yml:/app/dbwriter/config/config.yml
+      - ./dbwriter/temp/:/app/dbwriter/temp/
+    networks:
+      - kafka-network
 
   pgdb:
     image: postgres:latest
@@ -22,40 +28,75 @@ services:
       - 5436:5432
     environment:
       - POSTGRES_DB=patients
+      - POSTGRES_PASSWORD=postgres
     volumes:
-      - ../pgdata:/var/lib/postgresql/data
+      - ./dbwriter/pgdata:/var/lib/postgresql/data
+    networks:
+      - kafka-network
   
   server:
     build: 
       context: ./server
-      dockerfile: ./deployments/Dockerfile
+      dockerfile: /deployments/Dockerfile
     container_name: server
+    command: >
+      sh -c "./wait-for-it.sh kafka:9092 -t 0 && ./main" 
     depends_on:
       - kafka
     environment:
-      - KAFKA_HOST=kafka:29092
-      - CONFIG_PATH=../config/config.yml
+      - KAFKA_HOST=kafka:9092
+      - CONFIG_PATH=/app/server/config/config.yml
+    ports:
+      - 80:80
+    volumes:
+      - ./server/config/config.yml:/app/server/config/config.yml
+    networks:
+      - kafka-network
 
+  # zookeeper:
+  #   image: confluentinc/cp-zookeeper:latest
+  #   environment:
+  #     ZOOKEEPER_CLIENT_PORT: 2181
+  #     ZOOKEEPER_TICK_TIME: 2000
+  #   ports:
+  #     - 22181:2181
+  #   container_name: zookeeper
+  #   networks:
+  #     - kafka-network
+
+  # kafka:
+  #   image: confluentinc/cp-kafka:latest
+  #   depends_on:
+  #     - zookeeper
+  #   ports:
+  #     - 29092:29092
+  #   container_name: kafka
+  #   environment:
+  #     KAFKA_BROKER_ID: 1
+  #     KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+  #     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+  #     KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  #   networks:
+  #     - kafka-network
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - 22181:2181
-    container_name: zookeeper
+      - ZOOKEEPER_CLIENT_PORT=2181
+    networks:
+      - kafka-network
 
   kafka:
     image: confluentinc/cp-kafka:latest
     depends_on:
       - zookeeper
-    ports:
-      - 29092:29092
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+    networks:
+      - kafka-network
 
+networks:
+  kafka-network:
+    driver: bridge

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -22,16 +21,15 @@ type Server struct {
 	producer sarama.AsyncProducer
 }
 
-func New(kafkaHost string) *Server {
+func New(kafkaHost string) (*Server, error) {
 	producer, err := sarama.NewAsyncProducer([]string{kafkaHost}, sarama.NewConfig())
 	if err != nil {
-		log.Fatal(producer)
+		return nil, fmt.Errorf("failed to create kafka producer: %s", err.Error())
 	}
-
 	return &Server{
 		router:   gin.Default(),
 		producer: producer,
-	}
+	}, nil
 }
 
 func (s *Server) Run(port string) {
@@ -52,7 +50,6 @@ func (s *Server) Run(port string) {
 		}
 
 		//Todo: send data to kafka and return response to client
-		fmt.Println(patient)
 		data, err := json.Marshal(&patient)
 		if err != nil {
 			slog.Error("failed to marshal patient", slog.String("err", err.Error()))
@@ -81,7 +78,7 @@ func (s *Server) Run(port string) {
 			os.Exit(1)
 		}
 	}()
-
+	slog.Info("server is listening", slog.String("port", port))
 	<-ctx.Done()
 	slog.Info("start to finish server gracefully...")
 

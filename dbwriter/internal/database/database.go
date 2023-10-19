@@ -13,7 +13,7 @@ type Repository struct {
 }
 
 func Connect(cfg *config.Config) (*Repository, error) {
-	connStr := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=%s", cfg.User, cfg.Password, cfg.DBname, cfg.SSLMode)
+	connStr := fmt.Sprintf("user=%s password=%s dbname=%s host=%s port=%d sslmode=%s", cfg.User, cfg.Password, cfg.DBname, cfg.Host, cfg.Port, cfg.SSLMode)
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
