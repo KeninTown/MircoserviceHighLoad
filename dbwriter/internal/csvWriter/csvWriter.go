@@ -19,6 +19,11 @@ func New() *CsvWriter {
 
 func (cw *CsvWriter) CreateNewFile(path string) {
 	tempFile, err := os.CreateTemp(path, "patients-*.csv")
+	err = os.Chmod(tempFile.Name(), 0644)
+	if err != nil {
+		log.Fatal("failed to change chmod")
+	}
+	log.Println("Chmo changes to 0644")
 	if err != nil {
 		log.Fatal("failed to create temp file: %w", err)
 	}

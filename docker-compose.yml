@@ -19,11 +19,14 @@ services:
       - ./dbwriter/temp/:/app/dbwriter/temp/
     networks:
       - kafka-network
+      - csv-network
 
   pgdb:
     image: postgres:latest
     container_name: pgdb
     restart: always
+    # command: > 
+    #   sh -c "chmod -R 755 ./csv && " 
     ports:
       - 5436:5432
     environment:
@@ -31,8 +34,9 @@ services:
       - POSTGRES_PASSWORD=postgres
     volumes:
       - ./dbwriter/pgdata:/var/lib/postgresql/data
+      - ./dbwriter/temp:/csv
     networks:
-      - kafka-network
+      - csv-network
   
   server:
     build: 
@@ -99,4 +103,6 @@ services:
 
 networks:
   kafka-network:
+    driver: bridge
+  csv-network:
     driver: bridge

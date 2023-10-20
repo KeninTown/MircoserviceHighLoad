@@ -50,11 +50,11 @@ func main() {
 	//create CsvWriter with *file
 	csvWriter := csvwriter.New()
 	csvWriter.CreateNewFile(absPathToCsvDir)
-
 	if err != nil {
 		slog.Error("failed to create temp file", sl.Error(err))
 		os.Exit(1)
 	}
+	slog.Info("created file", slog.String("file", csvWriter.File.Name()))
 
 	//close file after complete
 	defer csvWriter.File.Close()
@@ -65,10 +65,6 @@ func main() {
 		slog.Error(err.Error())
 	}
 
-	// slog.Error("Привет привет привет")
-	// slog.Error("Привет привет привет")
-	// slog.Error("Привет привет привет")
-	// slog.Error("Привет привет привет")
 	log.Println("KafkaHost", cfg.KafkaHost)
 	consumer, err := sarama.NewConsumer([]string{cfg.KafkaHost}, sarama.NewConfig())
 	if err != nil {
@@ -97,23 +93,24 @@ func main() {
 	go func() {
 		for {
 			select {
-			case <-time.After(time.Minute * 2):
+			case <-time.After(time.Second * 15):
 				fileInfo, err := csvWriter.File.Stat()
 				if err != nil {
 					log.Println("failed to get file info: %w", err)
 					continue
 				}
-				if fileInfo.Size() > 167772160 {
+				if fileInfo.Size() > 1 {
+
 					mu.Lock()
 
-					if err := db.ImportFromCsv(csvWriter.File.Name()); err != nil {
-						log.Println(err.Error())
+					if err := db.ImportFromCsv(fileInfo.Name()); err != nil {
+						slog.Error("faile to import data from csv file", sl.Error(err))
+						continue
 					}
 
 					slog.Info("succesfully import data from csv")
 					csvWriter.CreateNewFile(absPathToCsvDir)
-					slog.Info("create new csv file")
-
+					slog.Info("created file", slog.String("file", csvWriter.File.Name()))
 					mu.Unlock()
 				}
 			case <-ctx.Done():

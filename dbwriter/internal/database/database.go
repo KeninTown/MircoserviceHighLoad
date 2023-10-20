@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"dbWriter/internal/config"
 	"fmt"
+	"log"
 
 	_ "github.com/lib/pq"
 )
@@ -37,8 +38,13 @@ func Connect(cfg *config.Config) (*Repository, error) {
 	return &Repository{Db: db}, nil
 }
 
-func (r *Repository) ImportFromCsv(path string) error {
-	query := fmt.Sprintf("COPY patients FROM '%s' DELIMITER ',' CSV HEADER;", path)
+func (r *Repository) ImportFromCsv(fileName string) error {
+	filePath := fmt.Sprintf("/csv/%s", fileName)
+	log.Println("file path is ", filePath)
+
+	query := fmt.Sprintf("COPY patients FROM '%s' DELIMITER ',' CSV HEADER;", filePath)
+	fmt.Println("query = ", query)
+
 	_, err := r.Db.Exec(query)
 	if err != nil {
 		return fmt.Errorf("failed to import data from csv file: %w", err)
