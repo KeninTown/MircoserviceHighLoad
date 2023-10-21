@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/sagikazarmark/slog-shim"
+	"golang.org/x/exp/slog"
 )
 
 type Repository interface {
