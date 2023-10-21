@@ -1,5 +1,8 @@
-host: "pgdb"
-port: 5432
-user: "postgres"
-dbname: "patients"
-sslmode: "disable"
+database:
+  host: "pgdb"
+  port: 5432
+  user: "postgres"
+  dbname: "patients"
+  sslmode: "disable"
+kafka:
+  topic: "test"

@@ -7,42 +7,55 @@ import (
 	"github.com/spf13/viper"
 )
 
-type Config struct {
-	KafkaHost string
-	Host      string `mapstructure:"host"`
-	Port      int    `mapstructure:"port"`
-	Password  string
-	User      string `mapstructure:"user"`
-	DBname    string `mapstructure:"dbname"`
-	SSLMode   string `mapstructure:"sslmode"`
+type DatabaseConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	User     string `mapstructure:"user"`
+	Password string
+	DBname   string `mapstructure:"dbname"`
+	SSLMode  string `mapstructure:"sslmode"`
 }
 
-func Init(path string) (*Config, error) {
-	var cfg Config
+type KafkaConfig struct {
+	Host  string
+	Topic string `mapstructure:"topic"`
+}
 
+func Init(path string) (*viper.Viper, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
 
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("failed to read config, err: %s", err.Error())
 	}
+	return v, nil
+}
 
-	if err := v.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config, err: %s", err.Error())
+func ReadDatabaseConfig(v *viper.Viper) (*DatabaseConfig, error) {
+	var dbCfg DatabaseConfig
+	if err := v.UnmarshalKey("database", &dbCfg); err != nil {
+		return nil, fmt.Errorf("failed to read database config")
 	}
-
 	dbPassword := os.Getenv("POSTGRES_PASSWORD")
 	if dbPassword == "" {
 		return nil, fmt.Errorf("failed to read POSTGRES_PASSWORD env variable")
 	}
 
-	kafkaHost := os.Getenv("KAFKA_HOST")
-	if kafkaHost == "" {
-		return nil, fmt.Errorf("failed to read KAFKA_HOST env variable")
+	dbCfg.Password = dbPassword
+	return &dbCfg, nil
+}
+
+func ReadKafkaConfig(v *viper.Viper) (*KafkaConfig, error) {
+	var kCfg KafkaConfig
+	if err := v.UnmarshalKey("kafka", &kCfg); err != nil {
+		return nil, fmt.Errorf("failed to read database config")
 	}
 
-	cfg.Password = dbPassword
-	cfg.KafkaHost = kafkaHost
+	kafkaHost := os.Getenv("KAFKA_HOST")
+	if kafkaHost == "" {
+		return nil, fmt.Errorf("failed to read POSTGRES_PASSWORD env variable")
+	}
 
-	return &cfg, nil
+	kCfg.Host = kafkaHost
+	return &kCfg, nil
 }

@@ -3,17 +3,19 @@ package database
 import (
 	"database/sql"
 	"dbWriter/internal/config"
+	"dbWriter/pkg/sl"
 	"fmt"
 	"log"
 
 	_ "github.com/lib/pq"
+	"golang.org/x/exp/slog"
 )
 
 type Repository struct {
-	Db *sql.DB
+	db *sql.DB
 }
 
-func Connect(cfg *config.Config) (*Repository, error) {
+func Connect(cfg *config.DatabaseConfig) (*Repository, error) {
 	connStr := fmt.Sprintf("user=%s password=%s dbname=%s host=%s port=%d sslmode=%s", cfg.User, cfg.Password, cfg.DBname, cfg.Host, cfg.Port, cfg.SSLMode)
 
 	db, err := sql.Open("postgres", connStr)
@@ -35,7 +37,7 @@ func Connect(cfg *config.Config) (*Repository, error) {
 		return nil, fmt.Errorf("failed to create patinet's table: %w", err)
 	}
 
-	return &Repository{Db: db}, nil
+	return &Repository{db: db}, nil
 }
 
 func (r *Repository) ImportFromCsv(fileName string) error {
@@ -45,7 +47,7 @@ func (r *Repository) ImportFromCsv(fileName string) error {
 	query := fmt.Sprintf("COPY patients FROM '%s' DELIMITER ',' CSV HEADER;", filePath)
 	fmt.Println("query = ", query)
 
-	_, err := r.Db.Exec(query)
+	_, err := r.db.Exec(query)
 	if err != nil {
 		return fmt.Errorf("failed to import data from csv file: %w", err)
 	}
@@ -53,7 +55,7 @@ func (r *Repository) ImportFromCsv(fileName string) error {
 }
 
 func (r Repository) FindBiggestId() (int, error) {
-	stmt, err := r.Db.Prepare("SELECT MAX(id) from patients")
+	stmt, err := r.db.Prepare("SELECT MAX(id) from patients")
 	if err != nil {
 		return 1, fmt.Errorf("failed to prepare statement for finding maximum id in patients talbe: %w", err)
 	}
@@ -65,4 +67,10 @@ func (r Repository) FindBiggestId() (int, error) {
 	}
 
 	return id + 1, nil
+}
+
+func (r Repository) Close() {
+	if err := r.db.Close(); err != nil {
+		slog.Error("failed to close connection with database", sl.Error(err))
+	}
 }
