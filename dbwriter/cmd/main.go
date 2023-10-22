@@ -55,6 +55,7 @@ func main() {
 	}
 
 	cw := csvwriter.New(csvDirPath)
+	cw.CreateNewFile()
 	defer cw.Close()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, os.Interrupt)
