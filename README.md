@@ -12,7 +12,7 @@
 ## Отправляемые данные
 ```json
 {
-    "name":"Jonh",
+    "name":"John",
     "last_name":"Doe",
     "date_of_birth":"1999-01-01",
     "blood_type": 1,
