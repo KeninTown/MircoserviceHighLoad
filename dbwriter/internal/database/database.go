@@ -42,10 +42,8 @@ func Connect(cfg *config.DatabaseConfig) (*Repository, error) {
 
 func (r *Repository) ImportFromCsv(fileName string) error {
 	filePath := fmt.Sprintf("/csv/%s", fileName)
-	log.Println("file path is ", filePath)
 
 	query := fmt.Sprintf("COPY patients FROM '%s' DELIMITER ',' CSV HEADER;", filePath)
-	fmt.Println("query = ", query)
 
 	_, err := r.db.Exec(query)
 	if err != nil {
