@@ -9,7 +9,7 @@ import (
 	"os"
 	"sync"
 	"time"
-	
+
 	"github.com/IBM/sarama"
 	"golang.org/x/exp/slog"
 )
