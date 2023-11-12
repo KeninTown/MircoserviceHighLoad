@@ -1,6 +1,7 @@
 package entities
 
 type Patient struct {
+	Id          uint   `json:"id"`
 	Name        string `json:"name"`
 	LastName    string `json:"last_name"`
 	DateOfBirth string `json:"date_of_birth"`
