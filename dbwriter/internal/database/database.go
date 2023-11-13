@@ -3,9 +3,10 @@ package database
 import (
 	"database/sql"
 	"dbWriter/internal/config"
+	"dbWriter/internal/entities"
 	"dbWriter/pkg/sl"
+	"errors"
 	"fmt"
-	"log"
 
 	_ "github.com/lib/pq"
 	"golang.org/x/exp/slog"
@@ -65,6 +66,20 @@ func (r Repository) FindBiggestId() (int, error) {
 	}
 
 	return id + 1, nil
+}
+
+func (r Repository) FindPatient(id int) (entities.Patient, error) {
+	stmt, err := r.db.Prepare("SELECT * from patients where id = ?")
+	if err != nil {
+		return entities.Patient{}, fmt.Errorf("failed to prepare statement for finding maximum id in patients talbe: %w", err)
+	}
+	var patient entities.Patient
+	err = stmt.QueryRow(id).Scan(&patient)
+	if errors.Is(err, sql.ErrNoRows) {
+		return entities.Patient{}, fmt.Errorf("patient is not exist")
+	}
+
+	return patient, nil
 }
 
 func (r Repository) Close() {

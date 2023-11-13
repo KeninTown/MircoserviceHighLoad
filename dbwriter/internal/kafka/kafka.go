@@ -4,6 +4,7 @@ import (
 	"context"
 	"dbWriter/internal/entities"
 	"dbWriter/pkg/sl"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -17,6 +18,7 @@ import (
 type Repository interface {
 	ImportFromCsv(fileName string) error
 	FindBiggestId() (int, error)
+	FindPatient(id int) (entities.Patient, error)
 }
 
 type CsvWriter interface {
@@ -68,18 +70,33 @@ func (k Kafka) Start(ctx context.Context, topic string, cr CsvWriter, r Reposito
 		slog.Info("failed to get max(id) from psql", sl.Error(err))
 	}
 
-	partitionConsumer, err := k.consumePartition(topic)
+	//consume createPatient partitions
+	createPatientConsumer, err := k.consumePartition(topic)
 	if err != nil {
 		slog.Error("failed to consume partition")
 		os.Exit(1)
 	}
 	defer func() {
-		if err := partitionConsumer.Close(); err != nil {
+		if err := createPatientConsumer.Close(); err != nil {
 			slog.Error("failed to close partitionConsumer", sl.Error(err))
 		}
 	}()
 
+	//consume patientId partition
+	patientIdConsumer, err := k.consumePartition("patientId")
+	if err != nil {
+		slog.Error("failed to consume patientId partition")
+		os.Exit(1)
+	}
+	defer func() {
+		if err := patientIdConsumer.Close(); err != nil {
+			slog.Error("failed to close patientId consumer", sl.Error(err))
+		}
+	}()
+
+	//importing data from csv file
 	go func() {
+	loop:
 		for {
 			select {
 			case <-time.After(time.Second * 15):
@@ -91,12 +108,13 @@ func (k Kafka) Start(ctx context.Context, topic string, cr CsvWriter, r Reposito
 				mu.Lock()
 				if err := r.ImportFromCsv(fileName); err != nil {
 					slog.Error("faile to import data from csv file", sl.Error(err))
-					continue
+					continue loop
 				}
 				slog.Info("succesfully import data from csv")
 				cr.CreateNewFile()
 				slog.Info("created file", slog.String("file", fileName))
 				mu.Unlock()
+
 			case <-ctx.Done():
 				slog.Info("closing importing gorutene")
 				return
@@ -106,12 +124,14 @@ func (k Kafka) Start(ctx context.Context, topic string, cr CsvWriter, r Reposito
 
 	slog.Info("starting to listen kafka")
 
+infinityLoop:
 	for {
 		select {
-		case msg, ok := <-partitionConsumer.Messages():
+		//create new patient
+		case msg, ok := <-createPatientConsumer.Messages():
 			if !ok {
 				slog.Error("Kafka's channels closed ")
-				break
+				break infinityLoop
 			}
 			var patient entities.Patient
 			if err := json.Unmarshal(msg.Value, &patient); err != nil {
@@ -124,12 +144,58 @@ func (k Kafka) Start(ctx context.Context, topic string, cr CsvWriter, r Reposito
 				slog.Error(err.Error())
 			}
 
+			patientInfoMsg := &sarama.ProducerMessage{
+				Topic: "patientInfo",
+				Key:   sarama.ByteEncoder(msg.Key),
+				Value: sarama.ByteEncoder([]byte{byte(patientId)}),
+			}
+
 			patientId++
 			mu.Unlock()
 
+			k.producer.Input() <- patientInfoMsg
+
 			slog.Info("recieved patient", slog.Any("patient", patient))
 
-		//exit app and import data into database before
+		//recieve patient's id and send patient's data
+		case msg, ok := <-patientIdConsumer.Messages():
+			if !ok {
+				slog.Error("Kafka's channels closed ")
+				break infinityLoop
+			}
+			id, _ := binary.Uvarint(msg.Value)
+			patient, err := r.FindPatient(int(id))
+
+			var patientInfoMsg *sarama.ProducerMessage
+
+			if err != nil {
+				patientInfoMsg = &sarama.ProducerMessage{
+					Topic: "patientInfo",
+					Key:   sarama.StringEncoder(msg.Key),
+					Value: sarama.StringEncoder(err.Error()),
+				}
+			}
+
+			patientMarshalled, err := json.Marshal(patient)
+			if err != nil {
+				patientInfoMsg = &sarama.ProducerMessage{
+					Topic: "patientInfo",
+					Key:   sarama.StringEncoder(msg.Key),
+					Value: sarama.StringEncoder(err.Error()),
+				}
+			}
+
+			if patientInfoMsg == nil {
+				patientInfoMsg = &sarama.ProducerMessage{
+					Topic: "patientInfo",
+					Key:   sarama.StringEncoder(msg.Key),
+					Value: sarama.ByteEncoder(patientMarshalled),
+				}
+			}
+
+			k.producer.Input() <- patientInfoMsg
+
+		//exit app and import data into database before exit
 		//if err does not occures we delete csv file
 		case <-ctx.Done():
 			if err := r.ImportFromCsv(cr.GetPathToFile()); err != nil {

@@ -5,4 +5,4 @@ database:
   dbname: "patients"
   sslmode: "disable"
 kafka:
-  topic: "test"
+  topic: "createPatient"
