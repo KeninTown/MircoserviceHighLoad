@@ -69,7 +69,7 @@ func (r Repository) FindBiggestId() (int, error) {
 }
 
 func (r Repository) FindPatient(id int) (entities.Patient, error) {
-	stmt, err := r.db.Prepare("SELECT * from patients where id = ?")
+	stmt, err := r.db.Prepare("SELECT * from patients where id = $1")
 	if err != nil {
 		return entities.Patient{}, fmt.Errorf("failed to prepare statement for finding maximum id in patients talbe: %w", err)
 	}
