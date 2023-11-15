@@ -53,7 +53,7 @@ func New(addr []string) (*Kafka, error) {
 func (k Kafka) consumePartition(topic string) (sarama.PartitionConsumer, error) {
 	partitionConsumer, err := k.consumer.ConsumePartition(topic, 0, sarama.OffsetNewest)
 	if err != nil {
-		return nil, fmt.Errorf("failed to consume partitio, err: %s", err.Error())
+		return nil, fmt.Errorf("failed to consume partition, err: %s", err.Error())
 	}
 	return partitionConsumer, nil
 }
@@ -143,7 +143,7 @@ infinityLoop:
 			if err != nil {
 				slog.Error(err.Error())
 			}
-
+			patient.Id = uint(patientId)
 			patientInfoMsg := &sarama.ProducerMessage{
 				Topic: "patientInfo",
 				Key:   sarama.ByteEncoder(msg.Key),
@@ -164,6 +164,7 @@ infinityLoop:
 				break infinityLoop
 			}
 			id, _ := binary.Uvarint(msg.Value)
+
 			patient, err := r.FindPatient(int(id))
 
 			var patientInfoMsg *sarama.ProducerMessage
