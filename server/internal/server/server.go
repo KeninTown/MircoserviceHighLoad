@@ -44,7 +44,7 @@ func New(kafkaHost string) (*Server, error) {
 var responseChannels sync.Map
 
 // var responseChannels map[string]chan *sarama.ConsumerMessage
-var mu sync.Mutex
+// var mu sync.Mutex
 
 func (s *Server) Run(port string) {
 	defer s.producer.Close()
@@ -65,9 +65,7 @@ func (s *Server) Run(port string) {
 					return
 				}
 				chanId := string(msg.Key)
-
-				mu.Lock()
-				defer mu.Unlock()
+				fmt.Println("Recieved chanId = ", chanId)
 
 				ch, ok := responseChannels.Load(chanId)
 				if ok {

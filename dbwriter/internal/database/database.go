@@ -7,6 +7,7 @@ import (
 	"dbWriter/pkg/sl"
 	"errors"
 	"fmt"
+	"time"
 
 	_ "github.com/lib/pq"
 	"golang.org/x/exp/slog"
@@ -69,15 +70,31 @@ func (r Repository) FindBiggestId() (int, error) {
 }
 
 func (r Repository) FindPatient(id int) (entities.Patient, error) {
-	stmt, err := r.db.Prepare("SELECT * from patients where id = $1")
+	stmt, err := r.db.Prepare("SELECT name, last_name, date_of_birth, blood_type, rh_factor FROM patients WHERE id = $1")
 	if err != nil {
 		return entities.Patient{}, fmt.Errorf("failed to prepare statement for finding maximum id in patients talbe: %w", err)
 	}
+
 	var patient entities.Patient
-	err = stmt.QueryRow(id).Scan(&patient)
+
+	var (
+		firstName   string
+		lastName    string
+		dateOfBirth time.Time
+		bloodType   uint
+		rhFactor    string
+	)
+
+	err = stmt.QueryRow(id).Scan(&firstName, &lastName, &dateOfBirth, &bloodType, &rhFactor)
 	if errors.Is(err, sql.ErrNoRows) {
 		return entities.Patient{}, fmt.Errorf("patient is not exist")
 	}
+
+	patient.Id = uint(id)
+	patient.Name = firstName
+	patient.LastName = lastName
+	patient.BloodType = bloodType
+	patient.RhFactor = rhFactor
 
 	return patient, nil
 }

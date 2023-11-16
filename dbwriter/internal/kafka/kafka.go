@@ -4,10 +4,10 @@ import (
 	"context"
 	"dbWriter/internal/entities"
 	"dbWriter/pkg/sl"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -133,42 +133,69 @@ infinityLoop:
 				slog.Error("Kafka's channels closed ")
 				break infinityLoop
 			}
+
 			var patient entities.Patient
 			if err := json.Unmarshal(msg.Value, &patient); err != nil {
 				slog.Error("failed to decode msg.Value", sl.Error(err))
 			}
 
+			slog.Info("recieved patient", slog.Any("patient", patient))
+
 			mu.Lock()
+
 			err := cr.Write(patient, patientId)
 			if err != nil {
 				slog.Error(err.Error())
 			}
 			patient.Id = uint(patientId)
-			patientInfoMsg := &sarama.ProducerMessage{
-				Topic: "patientInfo",
-				Key:   sarama.ByteEncoder(msg.Key),
-				Value: sarama.ByteEncoder([]byte{byte(patientId)}),
-			}
-
 			patientId++
+
 			mu.Unlock()
 
+			var patientInfoMsg *sarama.ProducerMessage
+
+			patientData, err := json.Marshal(patient)
+			if err != nil {
+				patientInfoMsg = &sarama.ProducerMessage{
+					Topic: "patientInfo",
+					Key:   sarama.ByteEncoder(msg.Key),
+					Value: sarama.ByteEncoder([]byte(`{"err":"failed to marshal patient data"}`)),
+				}
+			}
+
+			if err == nil {
+				patientInfoMsg = &sarama.ProducerMessage{
+					Topic: "patientInfo",
+					Key:   sarama.ByteEncoder(msg.Key),
+					Value: sarama.ByteEncoder(patientData),
+				}
+			}
+
 			k.producer.Input() <- patientInfoMsg
-
-			slog.Info("recieved patient", slog.Any("patient", patient))
-
+			fmt.Println("patient send with id = ", patient.Id, " chanId = ", string(msg.Key))
 		//recieve patient's id and send patient's data
 		case msg, ok := <-patientIdConsumer.Messages():
 			if !ok {
 				slog.Error("Kafka's channels closed ")
 				break infinityLoop
 			}
-			id, _ := binary.Uvarint(msg.Value)
-
-			patient, err := r.FindPatient(int(id))
-
 			var patientInfoMsg *sarama.ProducerMessage
 
+			idStr := string(msg.Value)
+			id, err := strconv.Atoi(idStr)
+
+			if err != nil || id <= 0 {
+				patientInfoMsg = &sarama.ProducerMessage{
+					Topic: "patientInfo",
+					Key:   sarama.StringEncoder(msg.Key),
+					Value: sarama.StringEncoder(err.Error()),
+				}
+			}
+
+			fmt.Println("id = ", id)
+			patient, err := r.FindPatient(int(id))
+			fmt.Println("patient = ", patient)
+
 			if err != nil {
 				patientInfoMsg = &sarama.ProducerMessage{
 					Topic: "patientInfo",
@@ -177,7 +204,7 @@ infinityLoop:
 				}
 			}
 
-			patientMarshalled, err := json.Marshal(patient)
+			patientData, err := json.Marshal(patient)
 			if err != nil {
 				patientInfoMsg = &sarama.ProducerMessage{
 					Topic: "patientInfo",
@@ -186,16 +213,19 @@ infinityLoop:
 				}
 			}
 
-			if patientInfoMsg == nil {
+			if err == nil {
 				patientInfoMsg = &sarama.ProducerMessage{
 					Topic: "patientInfo",
 					Key:   sarama.StringEncoder(msg.Key),
-					Value: sarama.ByteEncoder(patientMarshalled),
+					Value: sarama.ByteEncoder(patientData),
 				}
+			}
+			if err != nil {
+				slog.Error(err.Error())
 			}
 
 			k.producer.Input() <- patientInfoMsg
-
+			fmt.Println("patient send")
 		//exit app and import data into database before exit
 		//if err does not occures we delete csv file
 		case <-ctx.Done():

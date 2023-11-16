@@ -3,6 +3,7 @@ package handlers
 import (
 	"HighLoadServer/internal/entities"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -48,16 +49,41 @@ func (h Handler) GetPatient() gin.HandlerFunc {
 		responseCh := make(chan *sarama.ConsumerMessage)
 
 		h.responseChan.Store(requestId, responseCh)
+		fmt.Println("chanId = ", requestId)
 
 		select {
 		case msg := <-responseCh:
-			ctx.Data(200, "application/json", msg.Value)
-			return
+			//implemet different status code
+			var patient entities.Patient
+			if err := json.Unmarshal(msg.Value, &patient); err != nil {
+				slog.Error(err.Error())
+				ctx.JSON(400, "error occures, try again")
+				return
+			}
 
+			ctx.JSON(200, patient)
+			return
 		case <-time.After(time.Second * 10):
 			ctx.JSON(400, gin.H{"err": "failed to get patient info from db"})
 			return
 		}
+
+		// select {
+		// case msg := <-responseCh:
+		// 	//implemet different status code
+		// 	var patient entities.Patient
+		// 	if err := json.Unmarshal(msg.Value, &patient); err != nil {
+		// 		slog.Error(err.Error())
+		// 		ctx.JSON(400, "error occures")
+		// 		return
+		// 	}
+
+		// 	ctx.JSON(201, patient)
+		// 	return
+		// case <-time.After(time.Second * 10):
+		// 	ctx.JSON(400, gin.H{"err": "failed to create patient"})
+		// 	return
+		// }
 	}
 }
 
@@ -89,11 +115,19 @@ func (h Handler) CreatePatient() gin.HandlerFunc {
 		responseCh := make(chan *sarama.ConsumerMessage)
 
 		h.responseChan.Store(requestId, responseCh)
+		fmt.Println("Send chanId = ", requestId)
 
 		select {
 		case msg := <-responseCh:
 			//implemet different status code
-			ctx.Data(201, "application/json", msg.Value)
+			var patient entities.Patient
+			if err := json.Unmarshal(msg.Value, &patient); err != nil {
+				slog.Error(err.Error())
+				ctx.JSON(400, "error occures")
+				return
+			}
+
+			ctx.JSON(201, patient)
 			return
 		case <-time.After(time.Second * 10):
 			ctx.JSON(400, gin.H{"err": "failed to create patient"})
