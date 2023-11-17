@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"dbWriter/internal/common/commonerr"
 	"dbWriter/internal/entities"
 	"dbWriter/pkg/sl"
 	"encoding/json"
@@ -135,8 +136,11 @@ infinityLoop:
 			}
 
 			var patient entities.Patient
+
 			if err := json.Unmarshal(msg.Value, &patient); err != nil {
 				slog.Error("failed to decode msg.Value", sl.Error(err))
+				k.sendError(msg.Key, "failed to unmarshal")
+				continue infinityLoop
 			}
 
 			slog.Info("recieved patient", slog.Any("patient", patient))
@@ -152,26 +156,14 @@ infinityLoop:
 
 			mu.Unlock()
 
-			var patientInfoMsg *sarama.ProducerMessage
-
 			patientData, err := json.Marshal(patient)
 			if err != nil {
-				patientInfoMsg = &sarama.ProducerMessage{
-					Topic: "patientInfo",
-					Key:   sarama.ByteEncoder(msg.Key),
-					Value: sarama.ByteEncoder([]byte(`{"err":"failed to marshal patient data"}`)),
-				}
+				slog.Error("failed to unmarshal", slog.String("msgId", string(msg.Key)))
+				k.sendError(msg.Key, "failed to unmarshal")
+				continue infinityLoop
 			}
 
-			if err == nil {
-				patientInfoMsg = &sarama.ProducerMessage{
-					Topic: "patientInfo",
-					Key:   sarama.ByteEncoder(msg.Key),
-					Value: sarama.ByteEncoder(patientData),
-				}
-			}
-
-			k.producer.Input() <- patientInfoMsg
+			k.sendMsg(msg.Key, patientData)
 			fmt.Println("patient send with id = ", patient.Id, " chanId = ", string(msg.Key))
 		//recieve patient's id and send patient's data
 		case msg, ok := <-patientIdConsumer.Messages():
@@ -179,17 +171,13 @@ infinityLoop:
 				slog.Error("Kafka's channels closed ")
 				break infinityLoop
 			}
-			var patientInfoMsg *sarama.ProducerMessage
-
 			idStr := string(msg.Value)
 			id, err := strconv.Atoi(idStr)
 
 			if err != nil || id <= 0 {
-				patientInfoMsg = &sarama.ProducerMessage{
-					Topic: "patientInfo",
-					Key:   sarama.StringEncoder(msg.Key),
-					Value: sarama.StringEncoder(err.Error()),
-				}
+				slog.Error("invalid id")
+				k.sendError(msg.Key, "invalid id")
+				continue infinityLoop
 			}
 
 			fmt.Println("id = ", id)
@@ -197,34 +185,20 @@ infinityLoop:
 			fmt.Println("patient = ", patient)
 
 			if err != nil {
-				patientInfoMsg = &sarama.ProducerMessage{
-					Topic: "patientInfo",
-					Key:   sarama.StringEncoder(msg.Key),
-					Value: sarama.StringEncoder(err.Error()),
-				}
+				slog.Error(err.Error())
+				k.sendError(msg.Key, err.Error())
+				continue infinityLoop
 			}
 
 			patientData, err := json.Marshal(patient)
 			if err != nil {
-				patientInfoMsg = &sarama.ProducerMessage{
-					Topic: "patientInfo",
-					Key:   sarama.StringEncoder(msg.Key),
-					Value: sarama.StringEncoder(err.Error()),
-				}
-			}
-
-			if err == nil {
-				patientInfoMsg = &sarama.ProducerMessage{
-					Topic: "patientInfo",
-					Key:   sarama.StringEncoder(msg.Key),
-					Value: sarama.ByteEncoder(patientData),
-				}
-			}
-			if err != nil {
 				slog.Error(err.Error())
+				k.sendError(msg.Key, err.Error())
+				continue infinityLoop
 			}
 
-			k.producer.Input() <- patientInfoMsg
+			k.sendMsg(msg.Key, patientData)
+
 			fmt.Println("patient send")
 		//exit app and import data into database before exit
 		//if err does not occures we delete csv file
@@ -238,4 +212,21 @@ infinityLoop:
 			return
 		}
 	}
+}
+
+func (k Kafka) sendMsg(key, value []byte) {
+	patientInfoMsg := &sarama.ProducerMessage{
+		Topic: "patientInfo",
+		Key:   sarama.ByteEncoder(key),
+		Value: sarama.ByteEncoder(value),
+	}
+
+	k.producer.Input() <- patientInfoMsg
+}
+
+func (k Kafka) sendError(key []byte, msg string) {
+	err := commonerr.New(msg)
+	errData, _ := json.Marshal(err)
+
+	k.sendMsg(key, errData)
 }
