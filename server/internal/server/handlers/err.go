@@ -1,9 +1,9 @@
-package commonerr
+package handlers
 
 type Error struct {
 	Err string `json:"err"`
 }
 
-func New(msg string) Error {
+func NewResponseErr(msg string) Error {
 	return Error{msg}
 }

@@ -150,6 +150,8 @@ infinityLoop:
 			err := cr.Write(patient, patientId)
 			if err != nil {
 				slog.Error(err.Error())
+				k.sendError(msg.Key, err.Error())
+				continue infinityLoop
 			}
 			patient.Id = uint(patientId)
 			patientId++
@@ -165,12 +167,14 @@ infinityLoop:
 
 			k.sendMsg(msg.Key, patientData)
 			fmt.Println("patient send with id = ", patient.Id, " chanId = ", string(msg.Key))
+
 		//recieve patient's id and send patient's data
 		case msg, ok := <-patientIdConsumer.Messages():
 			if !ok {
 				slog.Error("Kafka's channels closed ")
 				break infinityLoop
 			}
+
 			idStr := string(msg.Value)
 			id, err := strconv.Atoi(idStr)
 
@@ -199,7 +203,8 @@ infinityLoop:
 
 			k.sendMsg(msg.Key, patientData)
 
-			fmt.Println("patient send")
+			fmt.Println("patient sent")
+
 		//exit app and import data into database before exit
 		//if err does not occures we delete csv file
 		case <-ctx.Done():

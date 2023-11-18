@@ -54,36 +54,28 @@ func (h Handler) GetPatient() gin.HandlerFunc {
 		select {
 		case msg := <-responseCh:
 			//implemet different status code
+			h.responseChan.Delete(requestId)
+
 			var patient entities.Patient
-			if err := json.Unmarshal(msg.Value, &patient); err != nil {
-				slog.Error(err.Error())
-				ctx.JSON(400, "error occures, try again")
+			if err := json.Unmarshal(msg.Value, &patient); err != nil || patient.Id == 0 {
+
+				var responseErr Error
+				if err := json.Unmarshal(msg.Value, &responseErr); err != nil || responseErr.Err == "" {
+					ctx.JSON(500, "unexpected error")
+					return
+				}
+
+				ctx.JSON(400, responseErr)
 				return
 			}
 
 			ctx.JSON(200, patient)
 			return
 		case <-time.After(time.Second * 10):
-			ctx.JSON(400, gin.H{"err": "failed to get patient info from db"})
+			h.responseChan.Delete(requestId)
+			ctx.JSON(400, NewResponseErr("failed to get response"))
 			return
 		}
-
-		// select {
-		// case msg := <-responseCh:
-		// 	//implemet different status code
-		// 	var patient entities.Patient
-		// 	if err := json.Unmarshal(msg.Value, &patient); err != nil {
-		// 		slog.Error(err.Error())
-		// 		ctx.JSON(400, "error occures")
-		// 		return
-		// 	}
-
-		// 	ctx.JSON(201, patient)
-		// 	return
-		// case <-time.After(time.Second * 10):
-		// 	ctx.JSON(400, gin.H{"err": "failed to create patient"})
-		// 	return
-		// }
 	}
 }
 
@@ -119,18 +111,39 @@ func (h Handler) CreatePatient() gin.HandlerFunc {
 
 		select {
 		case msg := <-responseCh:
+			h.responseChan.Delete(requestId)
 			//implemet different status code
 			var patient entities.Patient
 			if err := json.Unmarshal(msg.Value, &patient); err != nil {
 				slog.Error(err.Error())
-				ctx.JSON(400, "error occures")
+
+				var responseErr Error
+				if err := json.Unmarshal(msg.Value, &responseErr); err != nil || responseErr.Err == "" {
+					ctx.JSON(500, "unexpected error")
+					return
+				}
+
+				ctx.JSON(400, responseErr)
+				return
+			}
+
+			if patient.Id == 0 {
+				fmt.Print("зашли")
+				var responseErr Error
+				if err := json.Unmarshal(msg.Value, &responseErr); err != nil || responseErr.Err == "" {
+					ctx.JSON(500, "unexpected error")
+					return
+				}
+
+				ctx.JSON(400, responseErr)
 				return
 			}
 
 			ctx.JSON(201, patient)
 			return
 		case <-time.After(time.Second * 10):
-			ctx.JSON(400, gin.H{"err": "failed to create patient"})
+			ctx.JSON(400, NewResponseErr("failed to get response"))
+			h.responseChan.Delete(requestId)
 			return
 		}
 	}
