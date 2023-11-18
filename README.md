@@ -1,33 +1,37 @@
 # Highload Microservices
 
-## Идея
+## Preamble
 
-В ходе работы над данным проектом я хотел поработать с  *микросервисной архитектурой*. Была идея создания единой системы с базой данных, куда приходят множество запросов с данными о пациентах какой-либо больницы.
+I want to work with *Apache Kafka* and learn how to make communication between *microservices*.
+In this project were implemented 2 microservices:
+**1. HTTP server**
+Responseble for get requests from clients and send responses to them
+**2. Database writer**
+Responseble for  write data about some patient into postgteSQL database.
 
-В процессе реализации данной работы я попробовал следующие вещи:
-- Реализовал 2 микросервиса
-- Настроил их взаимодействие через *Apache Kafka*
-- Реализовал запись в PostgreSQL с помощью импорта из csv файла, в который записываются входящие данные. Данный способ является более эффективным, т.к. очень много INSERT запросов не смогли бы справится с большой нагрузкой в процессе работы сервера.
+Writing data into database implemented by importing from *csv file*, because many INSERT SQL query may reduce database perfomance.
 
-## Отправляемые данные
+
+## Sending data
 ```json
 {
     "name":"John",
     "last_name":"Doe",
-    "date_of_birth":"1999-01-01",
+    "date_of_birth":"2000-01-01",
     "blood_type": 1,
     "rh_factor":"positive"
 }
 ```
 
-## Тесты
-Тестирование проводилось с помощью *Apache Jmeter*. В процессе тестирования были получены максимальные значения пропускной способности - **850 000** запросов в минуту.
+## Tests
+Application were tested by *Apache Jmeter*. 
+Maximum throughput is reached **74 482** rpm and used 1.8 GB RAM.
 
-## Запуск приложения
-1. Скопировать репозиторий на свой локальный компьютер и перейти в папку с проектом
+## Installation
+Init git repository in your local host machine and execute commands below:
 ```bash
-git init
 git clone https://github.com/KeninTown/MircoserviceHighLoad
 cd MircoserviceHighLoad
+make run
 ```
-2. Запустить приложений командой `make run`. Убедитесь, что у вас запущен *docker-daemon*. 
+Make sure that *docker-daemon* is launched.
