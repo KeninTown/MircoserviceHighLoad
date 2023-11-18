@@ -100,7 +100,7 @@ func (k Kafka) Start(ctx context.Context, topic string, cr CsvWriter, r Reposito
 	loop:
 		for {
 			select {
-			case <-time.After(time.Second * 15):
+			case <-time.After(time.Minute):
 				fileName, err := cr.GetFileName()
 				if err != nil {
 					slog.Error(err.Error())
